@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: finledger-pro
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --config gunicorn.conf.py
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: finledger-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: LOG_LEVEL
+        value: info
+
+databases:
+  - name: finledger-db
+    databaseName: finledger
+    user: finledger
+    plan: free

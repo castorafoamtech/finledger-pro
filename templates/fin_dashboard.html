@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FinLedger Pro — Financial Account Management</title>
+  <link rel="stylesheet" href="/static/css/fin.css">
+  <style>
+    /* Page-specific overrides */
+    .text-red { color: var(--red) !important; }
+  </style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ═══════════════════════════════════════════════ -->
+<aside id="sidebar">
+
+  <!-- Brand -->
+  <div class="sidebar-header">
+    <div class="sidebar-brand">
+      <div class="brand-icon">₹</div>
+      <div>
+        <div class="brand-name">FinLedger Pro</div>
+        <div class="brand-sub">Account Management</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Search -->
+  <div class="sidebar-search">
+    <div class="sidebar-search-wrap">
+      <span class="sidebar-search-icon">⌕</span>
+      <input type="text" id="sidebar-search-input" class="sidebar-search-input"
+             placeholder="Filter accounts…" autocomplete="off">
+    </div>
+  </div>
+
+  <!-- Account List -->
+  <nav class="sidebar-nav">
+    <div id="account-list">
+      <div style="padding:20px 16px;color:var(--sidebar-text);font-size:12px">Loading accounts…</div>
+    </div>
+  </nav>
+
+  <!-- Footer actions -->
+  <div class="sidebar-footer">
+    <button class="sidebar-footer-btn" id="add-account-btn" title="Add account (Ctrl+Shift+A)">
+      <span>＋</span><span>Account</span>
+    </button>
+    <button class="sidebar-footer-btn" id="summary-btn" title="Summary view (Ctrl+Shift+S)">
+      <span>⊞</span><span>Summary</span>
+    </button>
+    <button class="sidebar-footer-btn" id="export-btn" title="Export to Excel">
+      <span>↓</span><span>Export</span>
+    </button>
+    <button class="sidebar-footer-btn" onclick="window.finApp.search.open()" title="Search (Ctrl+K)">
+      <span>⌕</span><span>Search</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══════════════════════════════════════════════════ -->
+<main id="main">
+
+  <!-- ── Top Header ────────────────────────────────────────── -->
+  <header id="top-header" class="hidden">
+    <div>
+      <span id="header-account-name" class="header-account-name">—</span>
+      <span id="header-account-sub" class="header-account-sub"></span>
+    </div>
+    <div class="header-actions">
+      <span style="font-size:11px;color:var(--text-muted);margin-right:4px">Balance</span>
+      <span id="header-balance" class="text-mono" style="font-weight:700;font-size:14px">—</span>
+      <span style="font-size:11px;color:var(--text-muted);margin:0 6px">Cr:</span>
+      <span id="header-credits" class="text-mono" style="color:var(--credit);font-size:12px">—</span>
+      <span style="font-size:11px;color:var(--text-muted);margin:0 6px">Dr:</span>
+      <span id="header-debits" class="text-mono" style="color:var(--debit);font-size:12px">—</span>
+      <div style="width:1px;height:20px;background:var(--border);margin:0 8px"></div>
+      <button class="btn btn-ghost btn-sm" id="edit-account-btn" onclick="window.finApp.editCurrentAccount()" title="Edit account name, number, group type">
+        ✏ Edit Account
+      </button>
+      <button class="btn btn-secondary btn-sm" onclick="window.finApp.openQuickAdd()" title="Shift+N">
+        ＋ Add Entry
+      </button>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="window.finApp.loadLedger()" title="Refresh">↺</button>
+    </div>
+  </header>
+
+  <!-- ── KPI Bar ────────────────────────────────────────────── -->
+  <div id="kpi-bar" class="hidden">
+    <!-- Manual Balance -->
+    <div class="kpi-card kpi-manual">
+      <div class="kpi-label">
+        <span class="dot"></span>
+        Manual Balance
+        <span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:10px;margin-left:4px">H + T</span>
+      </div>
+      <div class="kpi-value" id="kpi-manual">₹0.00</div>
+      <div class="kpi-sub" id="kpi-manual-sub">H: ₹0</div>
+    </div>
+
+    <!-- System Total -->
+    <div class="kpi-card kpi-system">
+      <div class="kpi-label">
+        <span class="dot"></span>
+        System Calculated
+        <span style="font-size:9px;background:#d1fae5;color:#065f46;padding:1px 5px;border-radius:10px;margin-left:4px">Credits − Debits</span>
+      </div>
+      <div class="kpi-value" id="kpi-system">₹0.00</div>
+      <div class="kpi-sub" id="kpi-system-sub">Credits: ₹0 · Debits: ₹0</div>
+    </div>
+
+    <!-- Difference -->
+    <div class="kpi-card kpi-diff" id="kpi-diff-card">
+      <div class="kpi-label">
+        <span class="dot"></span>
+        Difference
+        <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:10px;margin-left:4px">Manual − System</span>
+      </div>
+      <div class="kpi-value" id="kpi-diff">
+        <span id="kpi-diff-sign"></span>₹0.00
+      </div>
+      <div class="kpi-sub">Reconciliation gap</div>
+    </div>
+
+    <!-- T Value Panel -->
+    <div class="kpi-t-panel">
+      <div class="t-value-label">T Value <span style="color:var(--blue);font-size:9px">(Manual)</span></div>
+      <div class="t-value-input-wrap">
+        <span style="font-size:13px;color:var(--text-muted)">₹</span>
+        <input type="number" id="t-value-input" class="t-value-input"
+               step="0.01" placeholder="0.00" title="T is a manual adjustment value (no ledger)">
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Affects Manual Balance</div>
+    </div>
+
+    <!-- Updated Till Panel -->
+    <div class="kpi-t-panel kpi-date-panel">
+      <div class="t-value-label">Updated Till <span style="color:var(--text-muted);font-size:9px">(Manual)</span></div>
+      <input type="date" id="updated-till-input" class="updated-till-input" title="Set the date this data is updated till">
+      <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Data current as of</div>
+    </div>
+  </div>
+
+  <!-- ── Filter Bar ─────────────────────────────────────────── -->
+  <div id="filter-bar" class="hidden">
+    <!-- Type filters -->
+    <div class="filter-group">
+      <button class="filter-btn active" data-type="all">All</button>
+      <button class="filter-btn" data-type="credits">Credits</button>
+      <button class="filter-btn" data-type="debits">Debits</button>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <!-- Status filters -->
+    <div class="filter-group">
+      <button class="filter-btn" data-status="unpaid">Unpaid</button>
+      <button class="filter-btn" data-status="flagged">Flagged</button>
+      <button class="filter-btn" data-status="reminder">Reminder</button>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <!-- Search buttons -->
+    <div class="filter-group search-btn-group">
+      <button class="filter-btn search-mode-btn" id="search-btn-main" title="Search everything (Ctrl+K)">
+        <span class="sbtn-icon">⌕</span> Search
+      </button>
+      <button class="filter-btn search-mode-btn" id="search-btn-acct" title="Search accounts by name/number">
+        <span class="sbtn-icon">⊞</span> Accounts
+      </button>
+      <button class="filter-btn search-mode-btn" id="search-btn-date" title="Search by date">
+        <span class="sbtn-icon">📅</span> By Date
+      </button>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <!-- Date range -->
+    <input type="date" id="filter-date-from" class="filter-date-input" title="From date">
+    <span style="font-size:11px;color:var(--text-muted)">→</span>
+    <input type="date" id="filter-date-to" class="filter-date-input" title="To date">
+
+    <!-- In-ledger search -->
+    <div class="filter-search-wrap">
+      <span class="filter-search-icon">⌕</span>
+      <input type="text" id="filter-q" class="filter-search" placeholder="Search entries…" autocomplete="off">
+    </div>
+
+    <!-- Summary -->
+    <span class="filter-summary" id="filter-summary"></span>
+  </div>
+
+  <!-- ── Content Area ──────────────────────────────────────── -->
+  <div id="content">
+
+    <!-- Welcome state (shown when no account selected) -->
+    <div id="welcome-state">
+      <div class="welcome-icon">₹</div>
+      <div class="welcome-title">Select an account to view its ledger</div>
+      <div class="welcome-sub">
+        72 accounts imported from your Excel workbook.
+        Click any account in the sidebar, or press <kbd style="background:var(--bg);border:1px solid var(--border);padding:2px 6px;border-radius:4px;font-family:monospace">Ctrl+K</kbd> to search.
+      </div>
+      <div style="display:flex;gap:10px;margin-top:12px">
+        <button class="btn btn-primary" onclick="window.finApp.showAddAccountModal()">＋ New Account</button>
+        <button class="btn btn-secondary" onclick="window.finApp.search.open()">⌕ Search</button>
+      </div>
+    </div>
+
+    <!-- Ledger Table -->
+    <div id="ledger-wrap" class="hidden">
+      <table id="ledger-table">
+        <thead>
+          <tr>
+            <th class="col-sel">
+              <div class="th-inner" style="justify-content:center">
+                <input type="checkbox" id="header-checkbox" style="accent-color:var(--blue)">
+              </div>
+            </th>
+            <th class="col-date">
+              <div class="th-inner th-sortable" data-sort="txn_date">
+                Date <span class="th-sort-icon">↕</span>
+              </div>
+            </th>
+            <th class="col-credit">
+              <div class="th-inner" style="justify-content:flex-end">
+                Credit <span style="color:var(--credit)">↑</span>
+              </div>
+            </th>
+            <th class="col-cr-rem">
+              <div class="th-inner">Remark</div>
+            </th>
+            <th class="col-debit">
+              <div class="th-inner" style="justify-content:flex-end">
+                Debit <span style="color:var(--debit)">↓</span>
+              </div>
+            </th>
+            <th class="col-dr-rem">
+              <div class="th-inner">Remark</div>
+            </th>
+            <th class="col-balance">
+              <div class="th-inner" style="justify-content:flex-end">Balance</div>
+            </th>
+            <th class="col-status">
+              <div class="th-inner">Status</div>
+            </th>
+            <th class="col-flag">
+              <div class="th-inner" style="justify-content:center">🎨</div>
+            </th>
+            <th class="col-actions">
+              <div class="th-inner"></div>
+            </th>
+          </tr>
+        </thead>
+        <tbody id="ledger-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Ledger Footer -->
+    <div id="ledger-footer" class="hidden">
+      <div class="footer-totals">
+        <div class="footer-stat">
+          <span class="footer-stat-label">Credits</span>
+          <span class="footer-stat-val credit" id="footer-credits">₹0</span>
+        </div>
+        <div class="footer-stat">
+          <span class="footer-stat-label">Debits</span>
+          <span class="footer-stat-val debit" id="footer-debits">₹0</span>
+        </div>
+        <div class="footer-stat">
+          <span class="footer-stat-label">Net</span>
+          <span class="footer-stat-val" id="footer-net">₹0</span>
+        </div>
+        <span class="footer-count" id="footer-count">0 entries</span>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+
+</main><!-- /main -->
+
+<!-- ══ OVERLAYS & MODALS ════════════════════════════════════ -->
+
+<!-- Global Search -->
+<div id="search-overlay">
+  <div id="search-modal">
+    <div class="search-input-wrap">
+      <span class="search-icon">⌕</span>
+      <input id="search-input" type="text" placeholder="Search accounts, transactions, amounts…" autocomplete="off">
+      <span class="search-kbd">Esc</span>
+    </div>
+    <div id="search-results">
+      <div class="search-no-results">Start typing to search…</div>
+    </div>
+    <div class="search-footer">
+      <span id="search-footer-info">↑↓ navigate · Enter select · Esc close</span>
+      <span><kbd class="search-kbd">Ctrl+K</kbd> to open anytime</span>
+    </div>
+  </div>
+</div>
+
+<!-- Quick Add Transaction -->
+<div id="quick-add-overlay">
+  <div id="quick-add-modal">
+    <div class="modal-header">
+      <div class="modal-title">⚡ Quick Add Entry</div>
+      <button class="modal-close" id="quick-add-close">✕</button>
+    </div>
+    <div class="modal-body" id="quick-add-body">
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">Account</label>
+          <select id="qa-account" class="form-input qa-account-select" enterkeyhint="next"></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">Date <span style="color:var(--text-muted);font-size:9px">Actual entry date</span></label>
+          <input type="date" id="qa-date" class="form-input" enterkeyhint="next">
+        </div>
+        <div class="form-col">
+          <label class="form-label">Date of Transaction <span style="color:var(--text-muted);font-size:9px">Optional</span></label>
+          <input type="date" id="qa-txn-date" class="form-input" enterkeyhint="next">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label" style="color:var(--credit)">Credit ↑</label>
+          <input type="number" id="qa-credit" class="form-input credit-input" placeholder="0.00" step="0.01" min="0" enterkeyhint="next" inputmode="decimal">
+        </div>
+        <div class="form-col">
+          <label class="form-label">Credit Remark</label>
+          <input type="text" id="qa-credit-remark" class="form-input" placeholder="Description…" autocomplete="off" enterkeyhint="next">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label" style="color:var(--debit)">Debit ↓</label>
+          <input type="number" id="qa-debit" class="form-input debit-input" placeholder="0.00" step="0.01" min="0" enterkeyhint="next" inputmode="decimal">
+        </div>
+        <div class="form-col">
+          <label class="form-label">Debit Remark</label>
+          <input type="text" id="qa-debit-remark" class="form-input" placeholder="Description…" autocomplete="off" enterkeyhint="done">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-col" style="flex:0 0 160px">
+          <label class="form-label">Status</label>
+          <select id="qa-status" class="form-input">
+            <option value="normal">Normal</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="flagged">Flagged</option>
+            <option value="done">Done</option>
+            <option value="reminder">Reminder</option>
+          </select>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+        <kbd style="background:var(--bg);border:1px solid var(--border);padding:1px 5px;border-radius:3px;font-size:10px">Tab</kbd> / <kbd style="background:var(--bg);border:1px solid var(--border);padding:1px 5px;border-radius:3px;font-size:10px">Enter</kbd> to move · <kbd style="background:var(--bg);border:1px solid var(--border);padding:1px 5px;border-radius:3px;font-size:10px">Ctrl+Enter</kbd> save &amp; continue
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="quick-add-and-continue">Save &amp; Continue</button>
+      <button class="btn btn-primary" id="quick-add-submit">Save Entry</button>
+    </div>
+  </div>
+</div>
+
+<!-- Account Edit / Add Modal -->
+<div id="acct-modal-overlay">
+  <div id="acct-modal">
+    <div class="modal-header">
+      <div class="modal-title" id="acct-modal-title">Add Account</div>
+      <button class="modal-close" id="acct-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">Account Name *</label>
+          <input type="text" id="acct-name" class="form-input" placeholder="Account name…">
+        </div>
+        <div class="form-col" style="flex:0 0 130px">
+          <label class="form-label">Account Number</label>
+          <input type="text" id="acct-number" class="form-input" placeholder="e.g. 4599">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-col">
+          <label class="form-label">Group Type</label>
+          <select id="acct-group" class="form-input">
+            <option value="regular">Regular</option>
+            <option value="H">H Account (affects Manual Balance)</option>
+            <option value="dolph">Dolph Account (affects Manual Balance)</option>
+          </select>
+        </div>
+        <div class="form-col" style="flex:0 0 80px">
+          <label class="form-label">Color</label>
+          <input type="color" id="acct-color" class="form-input" style="height:38px;padding:2px 4px;cursor:pointer">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Notes</label>
+        <textarea id="acct-notes" class="form-input" rows="2" style="resize:vertical" placeholder="Optional notes…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="acct-modal-close2" onclick="window.finApp.closeAccountModal()">Cancel</button>
+      <button class="btn btn-primary" id="acct-modal-save">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SHARED UI ════════════════════════════════════════════ -->
+
+<!-- Floating Action Button -->
+<button id="fab" class="hidden" title="Quick Add (Shift+N)">＋</button>
+
+<!-- Selection Toolbar -->
+<div id="selection-toolbar">
+  <span class="sel-count" id="sel-count">0 selected</span>
+  <span class="sel-sep">|</span>
+  <button class="sel-action" id="sel-unpaid" title="Mark as unpaid">Unpaid</button>
+  <button class="sel-action" id="sel-flag" title="Flag red">🚩 Flag</button>
+  <button class="sel-action danger" id="sel-delete" title="Delete selected">🗑 Delete</button>
+  <button class="sel-action" id="sel-clear" title="Clear selection">✕ Clear</button>
+</div>
+
+<!-- Autocomplete Dropdown -->
+<div id="autocomplete-dropdown" class="autocomplete-dropdown"></div>
+
+<!-- Context Menu -->
+<div id="ctx-menu"></div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<!-- Undo Bar -->
+<div id="undo-bar">
+  <span id="undo-bar-label">Last action</span>
+  <button id="undo-bar-btn">Undo</button>
+</div>
+
+<!-- ══ SUMMARY PAGE ══════════════════════════════════════════ -->
+<div id="summary-overlay">
+  <div id="summary-page">
+
+    <!-- Header -->
+    <div class="sum-header">
+      <div class="sum-title">
+        <span class="sum-title-icon">⊞</span>
+        Account Summary
+      </div>
+      <div class="sum-filters" id="sum-filters">
+        <button class="sum-filter-btn active" data-mode="all">All Accounts</button>
+        <button class="sum-filter-btn" data-mode="pinned">Pinned Only</button>
+        <button class="sum-filter-btn" data-mode="custom">Custom</button>
+      </div>
+      <div class="sum-header-right">
+        <span class="sum-hint">Ctrl+Shift+S</span>
+        <button class="sum-close" id="summary-close" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+
+    <!-- Custom picker (visible only in Custom mode) -->
+    <div class="sum-custom-bar" id="sum-custom-bar">
+      <!-- Row 1: actions -->
+      <div class="sum-custom-row1">
+        <button id="sum-add-pinned-btn" class="sum-add-pinned-btn" title="Add all pinned accounts to selection">
+          ★ Add Pinned
+        </button>
+        <div class="sum-custom-sep"></div>
+        <div class="sum-custom-search-wrap">
+          <span class="sum-custom-search-icon">⌕</span>
+          <input type="text" id="sum-custom-input" class="sum-custom-input" placeholder="Search and add account…" autocomplete="off">
+          <div id="sum-custom-dropdown" class="sum-custom-dropdown"></div>
+        </div>
+        <span id="sum-sel-count" class="sum-sel-count-label">0 selected</span>
+        <button id="sum-clear-custom" class="sum-clear-btn" style="display:none">✕ Clear all</button>
+      </div>
+      <!-- Row 2: selected tags -->
+      <div class="sum-custom-tags-row" id="sum-custom-tags"></div>
+    </div>
+
+    <!-- Two-column body -->
+    <div class="sum-body">
+
+      <!-- Left: Positive / Credit accounts -->
+      <div class="sum-col sum-col-credit">
+        <div class="sum-col-header">
+          <div class="sum-col-title">
+            <span class="sum-col-dot credit"></span>
+            Positive Balance
+            <span class="sum-col-count" id="sum-credit-count">0</span>
+          </div>
+        </div>
+        <div class="sum-col-body" id="sum-credit-list"></div>
+      </div>
+
+      <!-- Divider -->
+      <div class="sum-body-divider"></div>
+
+      <!-- Right: Negative / Debit accounts -->
+      <div class="sum-col sum-col-debit">
+        <div class="sum-col-header">
+          <div class="sum-col-title">
+            <span class="sum-col-dot debit"></span>
+            Negative Balance
+            <span class="sum-col-count" id="sum-debit-count">0</span>
+          </div>
+        </div>
+        <div class="sum-col-body" id="sum-debit-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ SIDEBAR BACKDROP (mobile drawer) ══════════════════════ -->
+<div id="sidebar-backdrop"></div>
+
+<!-- ══ MOBILE NAV BAR ════════════════════════════════════════ -->
+<nav id="mobile-nav">
+  <button class="mob-btn" id="mob-accounts-btn">
+    <span class="mob-icon">☰</span>
+    <span class="mob-label">Accounts</span>
+  </button>
+  <button class="mob-btn" id="mob-search-btn">
+    <span class="mob-icon">⌕</span>
+    <span class="mob-label">Search</span>
+  </button>
+  <button class="mob-btn mob-btn-add" id="mob-add-btn">
+    <span class="mob-icon">＋</span>
+    <span class="mob-label">Add Entry</span>
+  </button>
+  <button class="mob-btn" id="mob-summary-btn">
+    <span class="mob-icon">⊞</span>
+    <span class="mob-label">Summary</span>
+  </button>
+  <button class="mob-btn" id="mob-kpi-btn">
+    <span class="mob-icon">◈</span>
+    <span class="mob-label">KPIs</span>
+  </button>
+</nav>
+
+<!-- ══ SHORTCUT BAR (always visible at bottom) ══════════════ -->
+<div id="shortcut-bar">
+  <span class="sc-item"><kbd>Ctrl+K</kbd> Search</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Shift+N</kbd> Add entry</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Ctrl+Z</kbd> Undo</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Shift+P</kbd> Pin account</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Ctrl+Shift+S</kbd> Summary</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>↑↓←→</kbd> Navigate cells</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Ctrl+↑↓</kbd> First / Last row</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Enter</kbd> Edit cell</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Ctrl+D</kbd> Copy down</span>
+  <span class="sc-sep">·</span>
+  <span class="sc-item"><kbd>Esc</kbd> Close / Cancel</span>
+</div>
+
+<script src="/static/js/fin_app.js"></script>
+
+<script>
+/* Inline script for features that need DOM-ready access */
+
+// ── Summary shortcut (Ctrl+Shift+S) ─────────────────────────
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
+    e.preventDefault();
+    window.finApp?.openSummary();
+  }
+});
+
+// ── Quick-add modal: Enter moves to next field (mobile-friendly) ─
+document.getElementById('quick-add-body').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  // Ctrl+Enter = save & continue regardless of field
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    window.finApp._submitQuickAdd(true);
+    return;
+  }
+  // Plain Enter on select/date/number/text: move to next focusable input
+  const focusable = [...document.querySelectorAll(
+    '#quick-add-body input, #quick-add-body select'
+  )].filter(el => !el.disabled && el.offsetParent !== null);
+  const idx = focusable.indexOf(e.target);
+  if (idx >= 0 && idx < focusable.length - 1) {
+    e.preventDefault();
+    focusable[idx + 1].focus();
+  } else if (idx === focusable.length - 1) {
+    // Last field — submit
+    e.preventDefault();
+    window.finApp._submitQuickAdd(false);
+  }
+});
+
+// ── Account context menu fix ─────────────────────────────────
+document.getElementById('acct-modal-close2')?.addEventListener('click', () => {
+  window.finApp.closeAccountModal();
+});
+
+// ── Import Excel button (in sidebar footer area) ─────────────
+// Users can import transactions by uploading an exported file
+const importInput = document.createElement('input');
+importInput.type = 'file';
+importInput.accept = '.xlsx';
+importInput.style.display = 'none';
+document.body.appendChild(importInput);
+
+importInput.addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const r = await fetch('/api/import/excel', { method: 'POST', body: formData });
+    const data = await r.json();
+    if (data.ok) {
+      window.finApp.toast?.(`Imported ${data.imported_transactions} transactions`, 'success');
+      await window.finApp.loadLedger();
+      await window.finApp.refreshKPIs();
+    } else {
+      alert('Import error: ' + (data.error || 'Unknown'));
+    }
+  } catch (err) { alert('Import failed: ' + err.message); }
+  importInput.value = '';
+});
+</script>
+
+</body>
+</html>
