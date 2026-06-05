@@ -947,7 +947,7 @@ class FinApp {
 
   // ── Add / Delete Transactions ─────────────────────────────────
 
-  async quickAddRow() { await this.addTransaction({ txn_date: this._defaultDate() }); }
+  async quickAddRow() { this.openQuickAdd(); }
 
   async addTransaction(data) {
     if (!this.currentAccountId) return;
@@ -962,24 +962,8 @@ class FinApp {
       setTimeout(() => {
         const row = el(`[data-txn-id="${txn.id}"]`);
         row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        // Start on the date cell so the user can confirm / change it first
-        const dateInput = row?.querySelector('input[type=date]');
-        if (dateInput) {
-          dateInput.focus();
-          try { dateInput.showPicker?.(); } catch {}
-          // After the date is confirmed (blur/change), move nav focus to credit
-          const moveToCredit = () => {
-            this._setNavFocus(txn.id, 'credit');
-            setTimeout(() => this._activateNavCell(), 30);
-          };
-          dateInput.addEventListener('change', moveToCredit, { once: true });
-          dateInput.addEventListener('keydown', e => {
-            if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); moveToCredit(); }
-          }, { once: true });
-        } else {
-          this._setNavFocus(txn.id, 'credit');
-          setTimeout(() => this._activateNavCell(), 60);
-        }
+        this._setNavFocus(txn.id, 'credit');
+        setTimeout(() => this._activateNavCell(), 60);
       }, 60);
       this.undoMgr.push({
         label: 'Add entry',
@@ -1160,7 +1144,7 @@ class FinApp {
     if (!sel.value && this.accounts.length) sel.value = this.accounts[0].id;
     el('#quick-add-overlay').classList.add('open');
     el('#qa-date').value = this._defaultDate();
-    setTimeout(() => el('#qa-credit').focus(), 50);
+    setTimeout(() => el('#qa-account').focus(), 50);
   }
 
   closeQuickAdd() {
@@ -1516,8 +1500,8 @@ class FinApp {
       const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag) && !e.target.classList.contains('form-input-allow-shortcuts');
       const ctrl    = e.ctrlKey || e.metaKey;
 
-      // Ctrl+K / Ctrl+F — Search
-      if (ctrl && (e.key === 'k' || e.key === 'f') && !inInput) {
+      // Ctrl+K — Search (works even when an input is focused)
+      if (ctrl && e.key === 'k') {
         e.preventDefault(); this.search.open('all'); return;
       }
 
