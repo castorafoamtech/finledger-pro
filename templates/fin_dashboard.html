@@ -118,9 +118,20 @@
         <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 5px;border-radius:10px;margin-left:4px">Manual − System</span>
       </div>
       <div class="kpi-value" id="kpi-diff">
-        <span id="kpi-diff-sign"></span>₹0.00
+        <span id="kpi-diff-sign"></span><span id="kpi-diff-val">₹0.00</span>
       </div>
       <div class="kpi-sub">Reconciliation gap</div>
+    </div>
+
+    <!-- Previous Balance Panel -->
+    <div class="kpi-t-panel">
+      <div class="t-value-label">Previous <span style="color:var(--text-muted);font-size:9px">(Manual)</span></div>
+      <div class="t-value-input-wrap">
+        <span style="font-size:13px;color:var(--text-muted)">₹</span>
+        <input type="number" id="previous-value-input" class="t-value-input"
+               step="0.01" placeholder="0.00" title="Previous reference balance (manual entry)">
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:3px">Reference balance</div>
     </div>
 
     <!-- T Value Panel -->

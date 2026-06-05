@@ -310,6 +310,7 @@ class FinApp {
     this._setupModals();
     this._setupFAB();
     this._setupTValue();
+    this._setupPreviousValue();
     this._setupUpdatedTill();
     this._setupUndoBar();
     this._setupSearchButtons();
@@ -1011,14 +1012,16 @@ class FinApp {
 
   _renderKPIs(k) {
     const s = '₹';
-    el('#kpi-manual').textContent  = `${s}${fmt(k.manual_balance)}`;
-    el('#kpi-system').textContent  = `${s}${fmt(k.system_total)}`;
-    el('#kpi-diff').textContent    = `${s}${fmt(Math.abs(k.difference))}`;
-    el('#kpi-diff-card').className = `kpi-card kpi-diff ${k.difference < 0 ? 'negative' : ''}`;
+    el('#kpi-manual').textContent     = `${s}${fmt(k.manual_balance)}`;
+    el('#kpi-system').textContent     = `${s}${fmt(k.system_total)}`;
+    el('#kpi-diff-val').textContent   = `${s}${fmt(Math.abs(k.difference))}`;
+    el('#kpi-diff-sign').textContent  = k.difference < 0 ? '−' : k.difference > 0 ? '+' : '=';
+    el('#kpi-diff-card').className    = `kpi-card kpi-diff ${k.difference < 0 ? 'negative' : ''}`;
     el('#kpi-manual-sub').textContent = `H: ${s}${fmt(k.h_balance,0)} · T: ${s}${fmt(k.t_value,0)}`;
     el('#kpi-system-sub').textContent = `Credits: ${s}${fmt(k.total_credits,0)} · Debits: ${s}${fmt(k.total_debits,0)}`;
-    el('#kpi-diff-sign').textContent  = k.difference < 0 ? '−' : k.difference > 0 ? '+' : '=';
-    if (el('#t-value-input').value === '') el('#t-value-input').value = k.t_value;
+    if (el('#t-value-input').value === '')       el('#t-value-input').value       = k.t_value || '';
+    if (el('#previous-value-input').value === '') el('#previous-value-input').value = k.previous_value || '';
+    if (el('#updated-till-input').value === '')  el('#updated-till-input').value  = k.updated_till || '';
   }
 
   // ── T Value ───────────────────────────────────────────────────
@@ -1033,18 +1036,22 @@ class FinApp {
     }, 400));
   }
 
+  // ── Previous Balance ──────────────────────────────────────────
+
+  _setupPreviousValue() {
+    const inp = el('#previous-value-input');
+    inp.addEventListener('change', debounce(async () => {
+      const val = parseFloat(inp.value) || 0;
+      await $.put('/api/settings', { previous_value: String(val) });
+      toast('Previous balance updated', 'success', 1500);
+    }, 400));
+  }
+
   // ── Updated Till Date ─────────────────────────────────────────
 
-  async _setupUpdatedTill() {
-    const inp = el('#updated-till-input');
-    // Load saved value
-    try {
-      const settings = await $.get('/api/settings');
-      if (settings.updated_till) inp.value = settings.updated_till;
-    } catch {}
-    // Save on change
-    inp.addEventListener('change', async () => {
-      await $.put('/api/settings', { updated_till: inp.value });
+  _setupUpdatedTill() {
+    el('#updated-till-input').addEventListener('change', async () => {
+      await $.put('/api/settings', { updated_till: el('#updated-till-input').value });
       toast('Updated till date saved', 'success', 1500);
     });
   }

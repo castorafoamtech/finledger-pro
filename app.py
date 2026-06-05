@@ -173,7 +173,9 @@ def _parse_date(s):
 
 def compute_kpis():
     """Core KPI calculation — the 3 hero values."""
-    t_value = float(_get('t_value', '0') or 0)
+    t_value        = float(_get('t_value', '0') or 0)
+    previous_value = _get('previous_value', '')
+    updated_till   = _get('updated_till', '')
 
     # H accounts
     h_accts = FinAccount.query.filter_by(group_type='H', is_archived=False).all()
@@ -196,6 +198,8 @@ def compute_kpis():
 
     return dict(
         t_value=t_value,
+        previous_value=previous_value,
+        updated_till=updated_till,
         h_balance=h_balance,
         dolph_balance=dolph_balance,
         manual_balance=manual_balance,
@@ -872,7 +876,7 @@ def init_db():
         except Exception:
             db.session.rollback()
         # Default settings
-        defaults = {'t_value': '0', 'currency_symbol': '₹', 'app_name': 'FinLedger Pro'}
+        defaults = {'t_value': '0', 'previous_value': '', 'updated_till': '', 'currency_symbol': '₹', 'app_name': 'FinLedger Pro'}
         for k, v in defaults.items():
             if not FinSetting.query.get(k):
                 db.session.add(FinSetting(key=k, value=v))
