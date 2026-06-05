@@ -288,6 +288,8 @@ class FinApp {
     this.ledgerData        = null;
     this.transactions      = [];
     this.filters           = { type: 'all', status: '', color_flag: '', date_from: '', date_to: '', q: '' };
+    this.sortField         = 'txn_date';
+    this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
     this.selectedRows      = new Set();
     this.undoMgr           = new UndoManager();
     this.autocomplete      = new Autocomplete();
@@ -311,6 +313,7 @@ class FinApp {
     this._setupUndoBar();
     this._setupSearchButtons();
     this._setupMobileNav();
+    this._setupSort();
     await Promise.all([this.loadAccounts(), this.refreshKPIs()]);
   }
 
@@ -322,6 +325,25 @@ class FinApp {
     el('#search-btn-acct')?.addEventListener('click',    () => this.search.open('account'));
     el('#search-btn-date')?.addEventListener('click',    () => this.search.open('date'));
     el('#search-btn-header')?.addEventListener('click',  () => this.search.open('all'));
+  }
+
+  // ── Column Sort ───────────────────────────────────────────────
+
+  _setupSort() {
+    document.querySelectorAll('.th-sortable[data-sort]').forEach(hdr => {
+      hdr.addEventListener('click', () => {
+        const field = hdr.dataset.sort;
+        if (this.sortField !== field || this.sortDir === null) {
+          this.sortField = field;
+          this.sortDir   = 'asc';
+        } else if (this.sortDir === 'asc') {
+          this.sortDir = 'desc';
+        } else {
+          this.sortDir = null;
+        }
+        this._renderLedger();
+      });
+    });
   }
 
   // ── Mobile Nav ────────────────────────────────────────────────
@@ -520,7 +542,24 @@ class FinApp {
 
   _renderLedger() {
     const tbody = el('#ledger-tbody');
-    const txns  = this.transactions;
+
+    // Apply date sort (keep this.transactions in server order for balance recalc)
+    let txns = this.transactions;
+    if (this.sortField && this.sortDir) {
+      txns = [...txns].sort((a, b) => {
+        const va = a[this.sortField] || '';
+        const vb = b[this.sortField] || '';
+        const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+        return this.sortDir === 'asc' ? cmp : -cmp;
+      });
+    }
+
+    // Update sort icon
+    const iconEl = document.querySelector(`.th-sortable[data-sort="${this.sortField}"] .th-sort-icon`);
+    if (iconEl) {
+      if (!this.sortDir) { iconEl.textContent = '↕'; iconEl.classList.remove('active'); }
+      else { iconEl.textContent = this.sortDir === 'asc' ? '↑' : '↓'; iconEl.classList.add('active'); }
+    }
 
     if (!txns.length) {
       tbody.innerHTML = `<tr><td colspan="10">
