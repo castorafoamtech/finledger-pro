@@ -290,6 +290,7 @@ class FinApp {
     this.filters           = { type: 'all', status: '', color_flag: '', date_from: '', date_to: '', q: '' };
     this.sortField         = 'txn_date';
     this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
+    this.lastUsedDate      = null;  // last date the user typed in any entry
     this.selectedRows      = new Set();
     this.undoMgr           = new UndoManager();
     this.autocomplete      = new Autocomplete();
@@ -325,6 +326,18 @@ class FinApp {
     el('#search-btn-acct')?.addEventListener('click',    () => this.search.open('account'));
     el('#search-btn-date')?.addEventListener('click',    () => this.search.open('date'));
     el('#search-btn-header')?.addEventListener('click',  () => this.search.open('all'));
+  }
+
+  // ── Date helpers ──────────────────────────────────────────────
+
+  _defaultDate() {
+    if (this.lastUsedDate) return this.lastUsedDate;
+    // Fall back to the last transaction's date in the current ledger
+    if (this.transactions.length) {
+      const d = this.transactions[this.transactions.length - 1].txn_date;
+      if (d) return String(d).slice(0, 10);
+    }
+    return new Date().toISOString().slice(0, 10);
   }
 
   // ── Column Sort ───────────────────────────────────────────────
@@ -660,6 +673,7 @@ class FinApp {
     const dateInput = row.querySelector('input[type=date]');
     if (dateInput) {
       dateInput.addEventListener('change', async () => {
+        if (dateInput.value) this.lastUsedDate = dateInput.value;
         const before = { txn_date: this.transactions.find(t => t.id === id)?.txn_date || null };
         await this._patchTxn(id, { txn_date: dateInput.value });
         this.undoMgr.push({
@@ -933,7 +947,7 @@ class FinApp {
 
   // ── Add / Delete Transactions ─────────────────────────────────
 
-  async quickAddRow() { await this.addTransaction({}); }
+  async quickAddRow() { await this.addTransaction({ txn_date: this._defaultDate() }); }
 
   async addTransaction(data) {
     if (!this.currentAccountId) return;
@@ -948,8 +962,24 @@ class FinApp {
       setTimeout(() => {
         const row = el(`[data-txn-id="${txn.id}"]`);
         row?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        this._setNavFocus(txn.id, 'credit');
-        setTimeout(() => this._activateNavCell(), 60);
+        // Start on the date cell so the user can confirm / change it first
+        const dateInput = row?.querySelector('input[type=date]');
+        if (dateInput) {
+          dateInput.focus();
+          try { dateInput.showPicker?.(); } catch {}
+          // After the date is confirmed (blur/change), move nav focus to credit
+          const moveToCredit = () => {
+            this._setNavFocus(txn.id, 'credit');
+            setTimeout(() => this._activateNavCell(), 30);
+          };
+          dateInput.addEventListener('change', moveToCredit, { once: true });
+          dateInput.addEventListener('keydown', e => {
+            if (e.key === 'Tab' || e.key === 'Enter') { e.preventDefault(); moveToCredit(); }
+          }, { once: true });
+        } else {
+          this._setNavFocus(txn.id, 'credit');
+          setTimeout(() => this._activateNavCell(), 60);
+        }
       }, 60);
       this.undoMgr.push({
         label: 'Add entry',
@@ -1129,7 +1159,7 @@ class FinApp {
       .join('');
     if (!sel.value && this.accounts.length) sel.value = this.accounts[0].id;
     el('#quick-add-overlay').classList.add('open');
-    el('#qa-date').value = new Date().toISOString().slice(0, 10);
+    el('#qa-date').value = this._defaultDate();
     setTimeout(() => el('#qa-credit').focus(), 50);
   }
 
@@ -1141,8 +1171,10 @@ class FinApp {
   async _submitQuickAdd(andContinue = false) {
     const acctId = parseInt(el('#qa-account').value);
     if (!acctId) { toast('Select an account', 'warning'); return; }
+    const txnDate = el('#qa-date').value;
+    if (txnDate) this.lastUsedDate = txnDate;
     const data = {
-      txn_date:         el('#qa-date').value,
+      txn_date:         txnDate,
       transaction_date: el('#qa-txn-date').value || null,
       credit:           parseFloat(el('#qa-credit').value) || 0,
       credit_remark:    el('#qa-credit-remark').value.trim(),
