@@ -1117,6 +1117,7 @@ class FinApp {
     el('#quick-add-close').addEventListener('click', () => this.closeQuickAdd());
     el('#quick-add-submit').addEventListener('click', () => this._submitQuickAdd(false));
     el('#quick-add-and-continue').addEventListener('click', () => this._submitQuickAdd(true));
+    this._setupQaAccountCombobox();
     el('#acct-modal-overlay').addEventListener('click', e => { if (e.target === el('#acct-modal-overlay')) this.closeAccountModal(); });
     el('#acct-modal-close').addEventListener('click', () => this.closeAccountModal());
     el('#acct-modal-save').addEventListener('click', () => this._saveAccountModal());
@@ -1135,21 +1136,122 @@ class FinApp {
     this.setupFilters();
   }
 
+  _setupQaAccountCombobox() {
+    const inp  = el('#qa-account-input');
+    const hid  = el('#qa-account');
+    const drop = el('#qa-account-dropdown');
+    let hoverId = null;
+
+    const label = a => a.name + (a.number ? ' · ' + a.number : '');
+    const list  = () => this.accounts.filter(a => !a.is_archived);
+
+    const renderDrop = (items) => {
+      if (!items.length) { drop.classList.remove('open'); return; }
+      drop.innerHTML = items.map(a =>
+        `<div class="qa-acct-item" data-id="${a.id}">${label(a).replace(/</g,'&lt;')}</div>`
+      ).join('');
+      drop.querySelectorAll('.qa-acct-item').forEach(it => {
+        it.addEventListener('mouseenter', () => {
+          drop.querySelectorAll('.qa-acct-item').forEach(x => x.classList.remove('active'));
+          it.classList.add('active');
+          hoverId = parseInt(it.dataset.id);
+        });
+        it.addEventListener('mousedown', e => { e.preventDefault(); pick(parseInt(it.dataset.id)); });
+      });
+      drop.classList.add('open');
+      hoverId = null;
+    };
+
+    const hideDrop = () => { drop.classList.remove('open'); hoverId = null; };
+
+    const pick = (id) => {
+      const a = list().find(x => x.id === id);
+      if (!a) return;
+      hid.value = id;
+      inp.value = label(a);
+      hideDrop();
+    };
+
+    const getActive = () => drop.querySelector('.qa-acct-item.active');
+
+    inp.addEventListener('focus', () => {
+      inp.select();
+      const q = inp.value.toLowerCase().trim();
+      const matches = list().filter(a => !q || label(a).toLowerCase().includes(q));
+      renderDrop(matches.length ? matches : list());
+    });
+
+    inp.addEventListener('input', () => {
+      hid.value = '';
+      const q = inp.value.toLowerCase().trim();
+      const matches = list().filter(a => label(a).toLowerCase().includes(q));
+      renderDrop(matches);
+    });
+
+    inp.addEventListener('keydown', e => {
+      const items = [...drop.querySelectorAll('.qa-acct-item')];
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const cur = items.findIndex(it => it.classList.contains('active'));
+        const next = items[cur + 1] || items[0];
+        items.forEach(it => it.classList.remove('active'));
+        next?.classList.add('active');
+        next?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const cur = items.findIndex(it => it.classList.contains('active'));
+        const prev = items[cur - 1] || items[items.length - 1];
+        items.forEach(it => it.classList.remove('active'));
+        prev?.classList.add('active');
+        prev?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        const active = getActive();
+        if (active) {
+          e.preventDefault();
+          pick(parseInt(active.dataset.id));
+          el('#qa-date').focus();
+        } else if (items.length === 1) {
+          e.preventDefault();
+          pick(parseInt(items[0].dataset.id));
+          el('#qa-date').focus();
+        }
+      } else if (e.key === 'Escape') {
+        hideDrop();
+      }
+    });
+
+    inp.addEventListener('blur', () => {
+      setTimeout(() => {
+        hideDrop();
+        if (!hid.value) {
+          const q = inp.value.toLowerCase().trim();
+          const exact = list().find(a => label(a).toLowerCase() === q);
+          if (exact) { hid.value = exact.id; }
+          else { inp.value = hid.value ? label(list().find(a => a.id === parseInt(hid.value)) || {name:''}) : ''; }
+        }
+      }, 160);
+    });
+
+    document.addEventListener('click', e => {
+      if (!el('.qa-acct-wrap')?.contains(e.target)) hideDrop();
+    });
+
+    this._qaAcctPick = pick;
+  }
+
   openQuickAdd() {
-    const sel = el('#qa-account');
-    sel.innerHTML = this.accounts
-      .filter(a => !a.is_archived)
-      .map(a => `<option value="${a.id}" ${a.id === this.currentAccountId ? 'selected' : ''}>${a.name}${a.number ? ' · ' + a.number : ''}</option>`)
-      .join('');
-    if (!sel.value && this.accounts.length) sel.value = this.accounts[0].id;
     el('#quick-add-overlay').classList.add('open');
     el('#qa-date').value = this._defaultDate();
-    setTimeout(() => el('#qa-account').focus(), 50);
+    const preselect = this.currentAccountId || (this.accounts.find(a => !a.is_archived)?.id);
+    if (preselect) this._qaAcctPick(preselect);
+    setTimeout(() => el('#qa-account-input').focus(), 50);
   }
 
   closeQuickAdd() {
     el('#quick-add-overlay').classList.remove('open');
     els('#quick-add-modal .form-input').forEach(i => { i.value = ''; });
+    el('#qa-account').value = '';
+    el('#qa-account-dropdown').classList.remove('open');
     document.body.focus();
   }
 
@@ -1182,7 +1284,7 @@ class FinApp {
     } catch { toast('Failed to add entry', 'error'); return; }
     if (andContinue) {
       ['#qa-credit','#qa-debit','#qa-credit-remark','#qa-debit-remark','#qa-txn-date'].forEach(s => { el(s).value = ''; });
-      el('#qa-credit').focus();
+      setTimeout(() => el('#qa-account-input').focus(), 30);
     } else { this.closeQuickAdd(); }
   }
 

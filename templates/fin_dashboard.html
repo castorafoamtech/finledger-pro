@@ -312,7 +312,11 @@
       <div class="form-row">
         <div class="form-col">
           <label class="form-label">Account</label>
-          <select id="qa-account" class="form-input qa-account-select" enterkeyhint="next"></select>
+          <div class="qa-acct-wrap">
+            <input type="text" id="qa-account-input" class="form-input qa-account-input" placeholder="Type to search…" autocomplete="off" spellcheck="false" enterkeyhint="next">
+            <input type="hidden" id="qa-account">
+            <div id="qa-account-dropdown" class="qa-acct-drop"></div>
+          </div>
         </div>
       </div>
       <div class="form-row">

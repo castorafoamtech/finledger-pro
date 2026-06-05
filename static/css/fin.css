@@ -1107,16 +1107,47 @@ td.nav-focus { position: relative; }
 
 #quick-add-overlay.open { display: flex; }
 
-.qa-account-select {
-  font-weight: 700;
+.qa-acct-wrap { position: relative; }
+
+.qa-account-input {
+  font-weight: 600;
   color: var(--blue-dark);
   background: var(--blue-light);
   border-color: rgba(59,130,246,.4);
 }
-.qa-account-select:focus {
+.qa-account-input:focus {
   border-color: var(--blue);
   background: #fff;
 }
+
+.qa-acct-drop {
+  display: none;
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 9999;
+}
+.qa-acct-drop.open { display: block; }
+.qa-acct-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qa-acct-item:hover, .qa-acct-item.active {
+  background: var(--blue-light);
+  color: var(--blue-dark);
+}
+.qa-acct-item mark { background: none; color: var(--blue); font-weight: 700; }
 
 #quick-add-modal {
   width: 480px;
