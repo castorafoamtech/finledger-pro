@@ -290,7 +290,7 @@ class FinApp {
     this.filters           = { type: 'all', status: '', color_flag: '', date_from: '', date_to: '', q: '' };
     this.sortField         = 'txn_date';
     this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
-    this.lastUsedDate      = null;  // last date the user typed in any entry
+    this.lastUsedDate      = localStorage.getItem('fin_last_date') || null;
     this.selectedRows      = new Set();
     this.undoMgr           = new UndoManager();
     this.autocomplete      = new Autocomplete();
@@ -673,7 +673,7 @@ class FinApp {
     const dateInput = row.querySelector('input[type=date]');
     if (dateInput) {
       dateInput.addEventListener('change', async () => {
-        if (dateInput.value) this.lastUsedDate = dateInput.value;
+        if (dateInput.value) { this.lastUsedDate = dateInput.value; localStorage.setItem('fin_last_date', dateInput.value); }
         const before = { txn_date: this.transactions.find(t => t.id === id)?.txn_date || null };
         await this._patchTxn(id, { txn_date: dateInput.value });
         this.undoMgr.push({
@@ -1150,13 +1150,14 @@ class FinApp {
   closeQuickAdd() {
     el('#quick-add-overlay').classList.remove('open');
     els('#quick-add-modal .form-input').forEach(i => { i.value = ''; });
+    document.body.focus();
   }
 
   async _submitQuickAdd(andContinue = false) {
     const acctId = parseInt(el('#qa-account').value);
     if (!acctId) { toast('Select an account', 'warning'); return; }
     const txnDate = el('#qa-date').value;
-    if (txnDate) this.lastUsedDate = txnDate;
+    if (txnDate) { this.lastUsedDate = txnDate; localStorage.setItem('fin_last_date', txnDate); }
     const data = {
       txn_date:         txnDate,
       transaction_date: el('#qa-txn-date').value || null,
