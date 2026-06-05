@@ -680,11 +680,51 @@ def api_global_analytics():
 
 @app.route('/api/audit')
 def api_audit():
-    limit = min(int(request.args.get('limit', 50)), 500)
-    logs = FinAuditLog.query.order_by(FinAuditLog.id.desc()).limit(limit).all()
-    return jsonify([dict(id=l.id, entity_type=l.entity_type, entity_id=l.entity_id,
-                         action=l.action, description=l.description,
-                         created_at=l.created_at.isoformat()) for l in logs])
+    limit   = min(int(request.args.get('limit', 200)), 500)
+    date_s  = request.args.get('date')   # YYYY-MM-DD  → filter by that day
+    since_s = request.args.get('since')  # ISO ts      → entries after this time (session mode)
+
+    q = FinAuditLog.query.order_by(FinAuditLog.id.desc())
+    if date_s:
+        try:
+            d = datetime.strptime(date_s, '%Y-%m-%d').date()
+            q = q.filter(func.date(FinAuditLog.created_at) == d)
+        except Exception:
+            pass
+    elif since_s:
+        try:
+            since_dt = datetime.fromisoformat(since_s.rstrip('Z'))
+            q = q.filter(FinAuditLog.created_at >= since_dt)
+        except Exception:
+            pass
+
+    logs = q.limit(limit).all()
+
+    # Pre-load account names to resolve txn entries without N+1 queries
+    acct_map = {a.id: a.name for a in FinAccount.query.all()}
+
+    result = []
+    for l in logs:
+        row = dict(
+            id=l.id, entity_type=l.entity_type, entity_id=l.entity_id,
+            action=l.action, description=l.description or '',
+            before_data=l.before_data or '', after_data=l.after_data or '',
+            created_at=l.created_at.isoformat() if l.created_at else '',
+        )
+        # Attach account name / id by parsing after_data or before_data
+        for src in (l.after_data, l.before_data):
+            if src:
+                try:
+                    d = json.loads(src)
+                    aid = d.get('account_id')
+                    if aid:
+                        row['account_id']   = aid
+                        row['account_name'] = acct_map.get(aid, '')
+                        break
+                except Exception:
+                    pass
+        result.append(row)
+    return jsonify(result)
 
 
 # ═══════════════════════════════════════════════════════════════

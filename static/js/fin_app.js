@@ -291,6 +291,7 @@ class FinApp {
     this.sortField         = 'txn_date';
     this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
     this.lastUsedDate      = localStorage.getItem('fin_last_date') || null;
+    this._sessionStart     = Date.now();
     this.selectedRows      = new Set();
     this.undoMgr           = new UndoManager();
     this.autocomplete      = new Autocomplete();
@@ -557,7 +558,7 @@ class FinApp {
   _renderLedger() {
     const tbody = el('#ledger-tbody');
 
-    // Apply date sort (keep this.transactions in server order for balance recalc)
+    // Apply sort — keep this.transactions in server order; work on a display copy
     let txns = this.transactions;
     if (this.sortField && this.sortDir) {
       txns = [...txns].sort((a, b) => {
@@ -565,6 +566,12 @@ class FinApp {
         const vb = b[this.sortField] || '';
         const cmp = va < vb ? -1 : va > vb ? 1 : 0;
         return this.sortDir === 'asc' ? cmp : -cmp;
+      });
+      // Recompute running balance in display order so the balance column is correct
+      let r = 0;
+      txns.forEach(t => {
+        r = Math.round((r + (t.credit || 0) - (t.debit || 0)) * 1e6) / 1e6;
+        t.running_balance = r;
       });
     }
 
@@ -897,7 +904,7 @@ class FinApp {
   _recalcBalances() {
     let running = 0;
     this.transactions.forEach(t => {
-      running += (t.credit || 0) - (t.debit || 0);
+      running = Math.round((running + (t.credit || 0) - (t.debit || 0)) * 1e6) / 1e6;
       t.running_balance = running;
     });
     this.transactions.forEach(t => {
@@ -1131,6 +1138,7 @@ class FinApp {
     el('#add-account-btn').addEventListener('click', () => this.showAddAccountModal());
     el('#summary-btn').addEventListener('click', () => this.openSummary());
     el('#export-btn').addEventListener('click', () => { window.location.href = '/api/export/excel'; });
+    el('#changes-btn').addEventListener('click', () => this.openChanges());
     el('#sel-delete').addEventListener('click', () => this.bulkAction('delete'));
     el('#sel-unpaid').addEventListener('click', () => this.bulkAction('status', { status: 'unpaid' }));
     el('#sel-flag').addEventListener('click',   () => this.bulkAction('color_flag', { color_flag: 'red' }));
@@ -1312,6 +1320,118 @@ class FinApp {
 
   closeSummary() {
     el('#summary-overlay').classList.remove('open');
+  }
+
+  // ── Changes Panel ─────────────────────────────────────────────
+
+  openChanges() {
+    el('#changes-overlay').classList.add('open');
+    if (!this._changesEventsAttached) {
+      this._changesEventsAttached = true;
+      el('#changes-close').addEventListener('click', () => this.closeChanges());
+      el('#changes-overlay').addEventListener('click', e => { if (e.target === el('#changes-overlay')) this.closeChanges(); });
+      els('.chg-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          els('.chg-filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          const mode = btn.dataset.chgMode;
+          el('#chg-date-wrap').style.display = mode === 'date' ? 'flex' : 'none';
+          if (mode !== 'date') this._loadChanges(mode);
+        });
+      });
+      el('#chg-date-input').addEventListener('change', () => {
+        const v = el('#chg-date-input').value;
+        if (v) this._loadChanges('date', v);
+      });
+    }
+    this._loadChanges('session');
+  }
+
+  closeChanges() {
+    el('#changes-overlay').classList.remove('open');
+    document.body.focus();
+  }
+
+  async _loadChanges(mode, dateVal) {
+    const body = el('#chg-body');
+    body.innerHTML = '<div class="chg-empty">Loading…</div>';
+    let url = '/api/audit?limit=200';
+    if (mode === 'today') {
+      url += `&date=${new Date().toISOString().slice(0, 10)}`;
+    } else if (mode === 'session') {
+      url += `&since=${new Date(this._sessionStart).toISOString()}`;
+    } else if (mode === 'date' && dateVal) {
+      url += `&date=${dateVal}`;
+    }
+    let logs;
+    try { logs = await $.get(url); } catch { body.innerHTML = '<div class="chg-empty">Failed to load changes.</div>'; return; }
+
+    el('#chg-count').textContent = logs.length ? `${logs.length} change${logs.length > 1 ? 's' : ''}` : '';
+
+    if (!logs.length) {
+      body.innerHTML = '<div class="chg-empty">No changes found.</div>';
+      return;
+    }
+
+    // Group by date
+    const groups = {};
+    logs.forEach(l => {
+      const d = l.created_at ? l.created_at.slice(0, 10) : 'Unknown';
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(l);
+    });
+
+    const fmtTime = iso => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+    const fmtAmt = n => n != null ? `₹${fmt(Math.abs(parseFloat(n) || 0))}` : null;
+
+    let html = '';
+    Object.keys(groups).sort((a, b) => b.localeCompare(a)).forEach(date => {
+      const label = date === new Date().toISOString().slice(0, 10) ? 'Today' : date;
+      html += `<div class="chg-group-label">${label}</div>`;
+      groups[date].forEach(l => {
+        const action  = (l.action || '').toLowerCase();
+        const entity  = (l.entity_type || '').toLowerCase();
+        const dotCls  = action.includes('delet') ? 'delete' : action.includes('creat') ? 'create' : entity === 'setting' ? 'setting' : 'update';
+        const eBadge  = entity === 'txn' ? 'chg-badge-txn' : entity === 'account' ? 'chg-badge-acct' : 'chg-badge-set';
+        const eLabel  = entity === 'txn' ? 'Txn' : entity === 'account' ? 'Account' : entity === 'setting' ? 'Setting' : entity;
+        const aBadge  = action.includes('creat') ? 'chg-badge-create' : action.includes('delet') ? 'chg-badge-delete' : 'chg-badge-update';
+        const aLabel  = action.charAt(0).toUpperCase() + action.slice(1);
+        const acct    = l.account_name ? `<span class="chg-acct-name">${l.account_name}</span>` : '';
+        const desc    = l.description  ? `<div class="chg-entry-desc" title="${l.description}">${l.description}</div>` : '';
+
+        let amtsHtml = '';
+        try {
+          const after  = l.after_data  ? JSON.parse(l.after_data)  : null;
+          const before = l.before_data ? JSON.parse(l.before_data) : null;
+          const parts  = [];
+          if (after?.credit  > 0) parts.push(`<span class="chg-amt credit">Cr ${fmtAmt(after.credit)}</span>`);
+          if (after?.debit   > 0) parts.push(`<span class="chg-amt debit">Dr ${fmtAmt(after.debit)}</span>`);
+          if (before && after && (before.credit !== after.credit || before.debit !== after.debit)) {
+            const diff = ((after.credit || 0) - (after.debit || 0)) - ((before.credit || 0) - (before.debit || 0));
+            if (diff !== 0) parts.push(`<span class="chg-amt diff">Δ ${diff >= 0 ? '+' : ''}${fmtAmt(diff)}</span>`);
+          }
+          if (parts.length) amtsHtml = `<div class="chg-amounts">${parts.join('')}</div>`;
+        } catch {}
+
+        html += `<div class="chg-entry">
+          <div class="chg-dot ${dotCls}"></div>
+          <div class="chg-entry-main">
+            <div class="chg-entry-top">
+              <span class="chg-badge ${eBadge}">${eLabel}</span>
+              <span class="chg-badge ${aBadge}">${aLabel}</span>
+              ${acct}
+            </div>
+            ${desc}${amtsHtml}
+          </div>
+          <div class="chg-time">${fmtTime(l.created_at)}</div>
+        </div>`;
+      });
+    });
+    body.innerHTML = html;
   }
 
   _setupSummaryEvents() {
@@ -1620,6 +1740,11 @@ class FinApp {
         e.preventDefault(); this.openSummary(); return;
       }
 
+      // Ctrl+Shift+H — Changes
+      if (ctrl && e.shiftKey && e.key === 'H') {
+        e.preventDefault(); this.openChanges(); return;
+      }
+
       // Shift+P — Pin / unpin current account
       if (e.shiftKey && !ctrl && e.key === 'P' && !inInput) {
         e.preventDefault();
@@ -1630,6 +1755,7 @@ class FinApp {
       // Escape — close overlays
       if (e.key === 'Escape') {
         this.closeSummary();
+        this.closeChanges();
         el('#search-overlay').classList.remove('open');
         this.closeQuickAdd();
         this.closeAccountModal();

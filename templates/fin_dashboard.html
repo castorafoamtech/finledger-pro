@@ -56,6 +56,9 @@
     <button class="sidebar-footer-btn" onclick="window.finApp.search.open()" title="Search (Ctrl+K)">
       <span>⌕</span><span>Search</span>
     </button>
+    <button class="sidebar-footer-btn" id="changes-btn" title="Recent Changes (Ctrl+Shift+H)">
+      <span>◷</span><span>Changes</span>
+    </button>
   </div>
 </aside>
 
@@ -651,6 +654,34 @@ importInput.addEventListener('change', async (e) => {
   importInput.value = '';
 });
 </script>
+
+<!-- ══ CHANGES PANEL ══════════════════════════════════════════ -->
+<div id="changes-overlay">
+  <div id="changes-panel">
+    <div class="chg-header">
+      <div class="chg-title">
+        <span class="chg-title-icon">◷</span>
+        Recent Changes
+      </div>
+      <div class="chg-filters">
+        <button class="chg-filter-btn active" data-chg-mode="session">This Session</button>
+        <button class="chg-filter-btn" data-chg-mode="today">Today</button>
+        <button class="chg-filter-btn" data-chg-mode="date">By Date</button>
+      </div>
+      <div class="chg-date-wrap" id="chg-date-wrap" style="display:none">
+        <input type="date" id="chg-date-input" class="chg-date-input">
+      </div>
+      <div class="chg-header-right">
+        <span class="chg-count" id="chg-count"></span>
+        <span class="sum-hint">Ctrl+Shift+H</span>
+        <button class="sum-close" id="changes-close" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="chg-body" id="chg-body">
+      <div class="chg-empty">Loading…</div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
