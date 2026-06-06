@@ -85,6 +85,9 @@
       <button class="btn btn-ghost btn-sm" id="edit-account-btn" onclick="window.finApp.editCurrentAccount()" title="Edit account name, number, group type">
         ✏ Edit Account
       </button>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="window.finApp.deleteAccount(window.finApp.currentAccountId)" title="Delete this account and all its transactions">
+        🗑 Delete Account
+      </button>
       <button class="btn btn-secondary btn-sm" onclick="window.finApp.openQuickAdd()" title="Shift+N">
         ＋ Add Entry
       </button>

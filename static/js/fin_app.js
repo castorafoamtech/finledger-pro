@@ -1706,11 +1706,32 @@ class FinApp {
   }
 
   async deleteAccount(id) {
-    if (!confirm('Permanently delete account and all transactions?')) return;
-    await $.del(`/api/accounts/${id}?force=true`);
-    if (this.currentAccountId === id) this.currentAccountId = null;
-    await this.loadAccounts(); await this.refreshKPIs();
-    toast('Deleted', 'success');
+    if (!id) return;
+    if (!confirm('Permanently delete this account and all its transactions?\nThis cannot be undone.')) return;
+    try {
+      await $.del(`/api/accounts/${id}?force=true`);
+      const wasOpen = this.currentAccountId === id;
+      if (wasOpen) {
+        this.currentAccountId = null;
+        this.transactions = [];
+        for (const s of ['#top-header','#kpi-bar','#filter-bar','#ledger-footer','#ledger-wrap','#fab'])
+          el(s)?.classList.add('hidden');
+        // Re-insert welcome state if it was removed
+        if (!el('#welcome-state')) {
+          const welcome = document.createElement('div');
+          welcome.id = 'welcome-state';
+          welcome.innerHTML = `<div class="welcome-icon">₹</div>
+            <div class="welcome-title">Account deleted</div>
+            <div class="welcome-sub">Select another account from the sidebar.</div>`;
+          el('#content').prepend(welcome);
+        } else {
+          el('#welcome-state').style.display = '';
+        }
+      }
+      await this.loadAccounts();
+      await this.refreshKPIs();
+      toast('Account deleted', 'success');
+    } catch { toast('Delete failed', 'error'); }
   }
 
   // ── Zero Balance Panel ────────────────────────────────────────
