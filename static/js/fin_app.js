@@ -1140,6 +1140,7 @@ class FinApp {
     el('#summary-btn').addEventListener('click', () => this.openSummary());
     el('#export-btn').addEventListener('click', () => { window.location.href = '/api/export/excel'; });
     el('#changes-btn').addEventListener('click', () => this.openChanges());
+    el('#zero-bal-btn').addEventListener('click', () => this.openZeroBalance());
     el('#sel-delete').addEventListener('click', () => this.bulkAction('delete'));
     el('#sel-unpaid').addEventListener('click', () => this.bulkAction('status', { status: 'unpaid' }));
     el('#sel-flag').addEventListener('click',   () => this.bulkAction('color_flag', { color_flag: 'red' }));
@@ -1161,12 +1162,17 @@ class FinApp {
     const label = a => a.name + (a.number ? ' · ' + a.number : '');
     const list  = () => this.accounts.filter(a => !a.is_archived);
 
-    const renderDrop = (items) => {
-      if (!items.length) { drop.classList.remove('open'); return; }
-      drop.innerHTML = items.map(a =>
+    const renderDrop = (items, q = '') => {
+      let html = items.map(a =>
         `<div class="qa-acct-item" data-id="${a.id}">${label(a).replace(/</g,'&lt;')}</div>`
       ).join('');
-      drop.querySelectorAll('.qa-acct-item').forEach(it => {
+      // Always show "＋ Create" option when user has typed something
+      if (q) {
+        html += `<div class="qa-acct-item qa-acct-new" data-create="1">＋ Add "<b>${q.replace(/</g,'&lt;')}</b>" as new account</div>`;
+      }
+      if (!html) { drop.classList.remove('open'); return; }
+      drop.innerHTML = html;
+      drop.querySelectorAll('.qa-acct-item[data-id]').forEach(it => {
         it.addEventListener('mouseenter', () => {
           drop.querySelectorAll('.qa-acct-item').forEach(x => x.classList.remove('active'));
           it.classList.add('active');
@@ -1174,6 +1180,15 @@ class FinApp {
         });
         it.addEventListener('mousedown', e => { e.preventDefault(); pick(parseInt(it.dataset.id)); });
       });
+      const createEl = drop.querySelector('.qa-acct-new');
+      if (createEl) {
+        createEl.addEventListener('mouseenter', () => {
+          drop.querySelectorAll('.qa-acct-item').forEach(x => x.classList.remove('active'));
+          createEl.classList.add('active');
+          hoverId = null;
+        });
+        createEl.addEventListener('mousedown', e => { e.preventDefault(); this._createAccountFromQA(inp.value.trim()); });
+      }
       drop.classList.add('open');
       hoverId = null;
     };
@@ -1188,47 +1203,53 @@ class FinApp {
       hideDrop();
     };
 
-    const getActive = () => drop.querySelector('.qa-acct-item.active');
-
     inp.addEventListener('focus', () => {
       inp.select();
       const q = inp.value.toLowerCase().trim();
       const matches = list().filter(a => !q || label(a).toLowerCase().includes(q));
-      renderDrop(matches.length ? matches : list());
+      renderDrop(matches.length ? matches : list(), q);
     });
 
     inp.addEventListener('input', () => {
       hid.value = '';
       const q = inp.value.toLowerCase().trim();
       const matches = list().filter(a => label(a).toLowerCase().includes(q));
-      renderDrop(matches);
+      renderDrop(matches, q);
     });
 
     inp.addEventListener('keydown', e => {
-      const items = [...drop.querySelectorAll('.qa-acct-item')];
+      const acctItems   = [...drop.querySelectorAll('.qa-acct-item[data-id]')];
+      const createItem  = drop.querySelector('.qa-acct-new');
+      const allItems    = createItem ? [...acctItems, createItem] : acctItems;
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        const cur = items.findIndex(it => it.classList.contains('active'));
-        const next = items[cur + 1] || items[0];
-        items.forEach(it => it.classList.remove('active'));
+        const cur  = allItems.findIndex(it => it.classList.contains('active'));
+        const next = allItems[cur + 1] || allItems[0];
+        allItems.forEach(it => it.classList.remove('active'));
         next?.classList.add('active');
         next?.scrollIntoView({ block: 'nearest' });
+        hoverId = next?.dataset.id ? parseInt(next.dataset.id) : null;
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        const cur = items.findIndex(it => it.classList.contains('active'));
-        const prev = items[cur - 1] || items[items.length - 1];
-        items.forEach(it => it.classList.remove('active'));
+        const cur  = allItems.findIndex(it => it.classList.contains('active'));
+        const prev = allItems[cur - 1] || allItems[allItems.length - 1];
+        allItems.forEach(it => it.classList.remove('active'));
         prev?.classList.add('active');
         prev?.scrollIntoView({ block: 'nearest' });
+        hoverId = prev?.dataset.id ? parseInt(prev.dataset.id) : null;
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        const active = getActive();
-        if (active) {
+        const active = drop.querySelector('.qa-acct-item.active');
+        if (active?.dataset.create) {
+          e.preventDefault();
+          this._createAccountFromQA(inp.value.trim());
+        } else if (active?.dataset.id) {
           e.preventDefault();
           pick(parseInt(active.dataset.id));
           el('#qa-date').focus();
-        } else if (items.length === 1) {
+        } else if (acctItems.length === 1) {
           e.preventDefault();
-          pick(parseInt(items[0].dataset.id));
+          pick(parseInt(acctItems[0].dataset.id));
           el('#qa-date').focus();
         }
       } else if (e.key === 'Escape') {
@@ -1253,6 +1274,19 @@ class FinApp {
     });
 
     this._qaAcctPick = pick;
+  }
+
+  _createAccountFromQA(name) {
+    this._qaNewAccountPending = true;
+    el('#acct-modal-title').textContent = 'Add Account';
+    el('#acct-name').value    = name;
+    el('#acct-number').value  = '';
+    el('#acct-group').value   = 'regular';
+    el('#acct-color').value   = '';
+    el('#acct-notes').value   = '';
+    el('#acct-modal-overlay').dataset.editId = '';
+    el('#acct-modal-overlay').classList.add('open');
+    setTimeout(() => el('#acct-number').focus(), 50);
   }
 
   openQuickAdd() {
@@ -1604,13 +1638,21 @@ class FinApp {
       group_type: el('#acct-group').value, color: el('#acct-color').value,
       notes: el('#acct-notes').value.trim(),
     };
-    const editId = el('#acct-modal-overlay').dataset.editId;
+    const editId  = el('#acct-modal-overlay').dataset.editId;
+    const fromQA  = this._qaNewAccountPending;
     try {
+      let newId;
       if (editId) { await $.put(`/api/accounts/${editId}`, data); toast('Account updated', 'success'); }
-      else { await $.post('/api/accounts', data); toast(`"${name}" created`, 'success'); }
+      else { const r = await $.post('/api/accounts', data); newId = r.id; toast(`"${name}" created`, 'success'); }
       this.closeAccountModal();
       await this.loadAccounts();
       await this.refreshKPIs();
+      // If created from Quick Add combobox, auto-select the new account
+      if (fromQA && newId) {
+        this._qaNewAccountPending = false;
+        this._qaAcctPick?.(newId);
+        setTimeout(() => el('#qa-date')?.focus(), 50);
+      }
     } catch { toast('Save failed', 'error'); }
   }
 
@@ -1669,6 +1711,78 @@ class FinApp {
     if (this.currentAccountId === id) this.currentAccountId = null;
     await this.loadAccounts(); await this.refreshKPIs();
     toast('Deleted', 'success');
+  }
+
+  // ── Zero Balance Panel ────────────────────────────────────────
+
+  openZeroBalance() {
+    el('#zero-bal-overlay').classList.add('open');
+    if (!this._zbalEventsAttached) {
+      this._zbalEventsAttached = true;
+      el('#zero-bal-close').addEventListener('click', () => this.closeZeroBalance());
+      el('#zero-bal-overlay').addEventListener('click', e => {
+        if (e.target === el('#zero-bal-overlay')) this.closeZeroBalance();
+      });
+    }
+    this._renderZeroBal();
+  }
+
+  closeZeroBalance() {
+    el('#zero-bal-overlay').classList.remove('open');
+    document.body.focus();
+  }
+
+  _renderZeroBal() {
+    const zeros = this.accounts.filter(a => Math.abs(a.balance || 0) < 0.01);
+    el('#zbal-count').textContent = zeros.length ? `${zeros.length} account${zeros.length !== 1 ? 's' : ''}` : '';
+    if (!zeros.length) {
+      el('#zbal-body').innerHTML = '<div class="chg-empty">✓ No accounts with zero balance.</div>';
+      return;
+    }
+    el('#zbal-body').innerHTML = zeros.map(a => {
+      const grp = a.group_type !== 'regular'
+        ? `<span class="chg-badge chg-badge-acct">${a.group_type.toUpperCase()}</span>` : '';
+      const num = a.number ? `<span class="zbal-num">#${a.number}</span>` : '';
+      const nm  = (a.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+      return `<div class="zbal-row" id="zbal-row-${a.id}">
+        <span class="account-dot ${a.group_type}" style="${a.color ? 'background:' + a.color : ''}"></span>
+        <div class="zbal-info">
+          <span class="zbal-name">${a.name}</span>
+          ${num}${grp}
+        </div>
+        <span class="zbal-txns">${a.txn_count || 0} txn${(a.txn_count || 0) !== 1 ? 's' : ''}</span>
+        <div class="zbal-actions">
+          <button class="zbal-btn zbal-open"    title="Open ledger"
+            onclick="window.finApp.closeZeroBalance();window.finApp.openAccount(${a.id})">↗</button>
+          <button class="zbal-btn zbal-archive" title="Archive account"
+            onclick="window.finApp._archiveFromZeroBal(${a.id},'${nm}')">🗄</button>
+          <button class="zbal-btn zbal-delete"  title="Delete account permanently"
+            onclick="window.finApp._deleteFromZeroBal(${a.id},'${nm}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async _archiveFromZeroBal(id, name) {
+    if (!confirm(`Archive "${name}"?\nIt won't appear in the sidebar but data is kept.`)) return;
+    try {
+      await $.del(`/api/accounts/${id}`);
+      if (this.currentAccountId === id) this.currentAccountId = null;
+      await this.loadAccounts(); await this.refreshKPIs();
+      toast(`"${name}" archived`, 'success');
+      this._renderZeroBal();
+    } catch { toast('Archive failed', 'error'); }
+  }
+
+  async _deleteFromZeroBal(id, name) {
+    if (!confirm(`Permanently delete "${name}" and all its transactions?\nThis cannot be undone.`)) return;
+    try {
+      await $.del(`/api/accounts/${id}?force=true`);
+      if (this.currentAccountId === id) this.currentAccountId = null;
+      await this.loadAccounts(); await this.refreshKPIs();
+      toast(`"${name}" deleted`, 'success');
+      this._renderZeroBal();
+    } catch { toast('Delete failed', 'error'); }
   }
 
   async duplicateAccount(id) {
@@ -1791,6 +1905,7 @@ class FinApp {
       if (e.key === 'Escape') {
         this.closeSummary();
         this.closeChanges();
+        this.closeZeroBalance();
         el('#search-overlay').classList.remove('open');
         this.closeQuickAdd();
         this.closeAccountModal();

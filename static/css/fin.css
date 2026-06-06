@@ -1154,6 +1154,16 @@ td.nav-focus { position: relative; }
 }
 .qa-acct-item mark { background: none; color: var(--blue); font-weight: 700; }
 
+/* "＋ Add as new account" row at bottom of combobox dropdown */
+.qa-acct-new {
+  border-top: 1px dashed var(--border);
+  color: var(--blue);
+  font-size: 12px;
+  font-style: italic;
+}
+.qa-acct-new b { font-style: normal; font-weight: 700; color: var(--text-primary); }
+.qa-acct-new.active { background: #dbeafe; color: var(--blue); }
+
 #quick-add-modal {
   width: 480px;
   max-width: calc(100vw - 40px);
@@ -2341,4 +2351,91 @@ td.nav-focus { position: relative; }
   white-space: nowrap;
   flex-shrink: 0;
   padding-top: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ZERO BALANCE PANEL
+═══════════════════════════════════════════════════════════════ */
+#zero-bal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 600;
+  align-items: stretch;
+  justify-content: flex-end;
+}
+#zero-bal-overlay.open { display: flex; }
+
+#zero-bal-panel {
+  background: var(--surface);
+  width: min(520px, 100vw);
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 32px rgba(0,0,0,.18);
+  animation: slideInRight 180ms ease;
+}
+
+.zbal-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-2);
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  transition: border-color 120ms;
+}
+.zbal-row:hover { border-color: var(--blue); }
+
+.zbal-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+}
+.zbal-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zbal-num {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--text-mono);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.zbal-txns {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.zbal-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.zbal-btn {
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity 120ms;
+  line-height: 1;
+}
+.zbal-btn:hover { opacity: .75; }
+.zbal-open    { background: var(--surface); border: 1px solid var(--border); color: var(--blue); font-size: 14px; }
+.zbal-archive { background: #fef9c3; color: #92400e; }
+.zbal-delete  { background: #fee2e2; color: #991b1b; }
+
+@media (max-width: 600px) {
+  #zero-bal-overlay { padding-bottom: 64px; }
 }

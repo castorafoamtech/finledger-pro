@@ -59,6 +59,9 @@
     <button class="sidebar-footer-btn" id="changes-btn" title="Recent Changes (Ctrl+Shift+H)">
       <span>◷</span><span>Changes</span>
     </button>
+    <button class="sidebar-footer-btn" id="zero-bal-btn" title="Zero Balance Accounts">
+      <span>◎</span><span>Zero Bal</span>
+    </button>
   </div>
 </aside>
 
@@ -648,6 +651,25 @@ importInput.addEventListener('change', async (e) => {
   importInput.value = '';
 });
 </script>
+
+<!-- ══ ZERO BALANCE PANEL ═════════════════════════════════════ -->
+<div id="zero-bal-overlay">
+  <div id="zero-bal-panel">
+    <div class="chg-header">
+      <div class="chg-title">
+        <span class="chg-title-icon">◎</span>
+        Zero Balance Accounts
+      </div>
+      <div class="chg-header-right">
+        <span class="chg-count" id="zbal-count"></span>
+        <button class="sum-close" id="zero-bal-close" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="chg-body" id="zbal-body">
+      <div class="chg-empty">Loading…</div>
+    </div>
+  </div>
+</div>
 
 <!-- ══ CHANGES PANEL ══════════════════════════════════════════ -->
 <div id="changes-overlay">
