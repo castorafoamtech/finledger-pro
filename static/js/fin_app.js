@@ -290,7 +290,8 @@ class FinApp {
     this.filters           = { type: 'all', status: '', color_flag: '', date_from: '', date_to: '', q: '' };
     this.sortField         = 'txn_date';
     this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
-    this.lastUsedDate      = localStorage.getItem('fin_last_date') || null;
+    this.lastUsedDate      = localStorage.getItem('fin_last_date')     || null;
+    this.lastUsedTxnDate   = localStorage.getItem('fin_last_txn_date') || null;
     this._sessionStart     = Date.now();
     this.selectedRows      = new Set();
     this.undoMgr           = new UndoManager();
@@ -1257,6 +1258,7 @@ class FinApp {
   openQuickAdd() {
     el('#quick-add-overlay').classList.add('open');
     el('#qa-date').value = this._defaultDate();
+    el('#qa-txn-date').value = this.lastUsedTxnDate || '';
     const preselect = this.currentAccountId || (this.accounts.find(a => !a.is_archived)?.id);
     if (preselect) this._qaAcctPick(preselect);
     setTimeout(() => el('#qa-account-input').focus(), 50);
@@ -1273,11 +1275,13 @@ class FinApp {
   async _submitQuickAdd(andContinue = false) {
     const acctId = parseInt(el('#qa-account').value);
     if (!acctId) { toast('Select an account', 'warning'); return; }
-    const txnDate = el('#qa-date').value;
-    if (txnDate) { this.lastUsedDate = txnDate; localStorage.setItem('fin_last_date', txnDate); }
+    const txnDate    = el('#qa-date').value;
+    const txnActDate = el('#qa-txn-date').value;
+    if (txnDate)    { this.lastUsedDate    = txnDate;    localStorage.setItem('fin_last_date',     txnDate); }
+    if (txnActDate) { this.lastUsedTxnDate = txnActDate; localStorage.setItem('fin_last_txn_date', txnActDate); }
     const data = {
       txn_date:         txnDate,
-      transaction_date: el('#qa-txn-date').value || null,
+      transaction_date: txnActDate || null,
       credit:           parseFloat(el('#qa-credit').value) || 0,
       credit_remark:    el('#qa-credit-remark').value.trim(),
       debit:            parseFloat(el('#qa-debit').value) || 0,
@@ -1298,7 +1302,7 @@ class FinApp {
       toast(`Added to ${acct?.name || 'account'}`, 'success');
     } catch { toast('Failed to add entry', 'error'); return; }
     if (andContinue) {
-      ['#qa-credit','#qa-debit','#qa-credit-remark','#qa-debit-remark','#qa-txn-date'].forEach(s => { el(s).value = ''; });
+      ['#qa-credit','#qa-debit','#qa-credit-remark','#qa-debit-remark'].forEach(s => { el(s).value = ''; });
       setTimeout(() => el('#qa-account-input').focus(), 30);
     } else { this.closeQuickAdd(); }
   }
