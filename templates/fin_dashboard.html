@@ -592,14 +592,6 @@
 <script>
 /* Inline script for features that need DOM-ready access */
 
-// ── Summary shortcut (Ctrl+Shift+S) ─────────────────────────
-document.addEventListener('keydown', (e) => {
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'S') {
-    e.preventDefault();
-    window.finApp?.openSummary();
-  }
-});
-
 // ── Quick-add modal: Enter moves to next field (mobile-friendly) ─
 document.getElementById('quick-add-body').addEventListener('keydown', (e) => {
   if (e.key !== 'Enter') return;

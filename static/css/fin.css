@@ -404,7 +404,7 @@ body {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto auto;
+  grid-template-columns: 1fr 1fr 1fr auto auto auto;
   gap: 0;
   flex-shrink: 0;
   height: var(--kpi-h);

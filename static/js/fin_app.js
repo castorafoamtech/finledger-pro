@@ -1320,6 +1320,7 @@ class FinApp {
 
   closeSummary() {
     el('#summary-overlay').classList.remove('open');
+    document.body.focus();
   }
 
   // ── Changes Panel ─────────────────────────────────────────────
@@ -1589,7 +1590,7 @@ class FinApp {
     setTimeout(() => el('#acct-name').focus(), 50);
   }
 
-  closeAccountModal() { el('#acct-modal-overlay').classList.remove('open'); }
+  closeAccountModal() { el('#acct-modal-overlay').classList.remove('open'); document.body.focus(); }
 
   async _saveAccountModal() {
     const name = el('#acct-name').value.trim();
@@ -1725,29 +1726,59 @@ class FinApp {
   // ── Global Keyboard Shortcuts ─────────────────────────────────
 
   _setupGlobalKeys() {
+    // ── Keyboard shortcuts ──────────────────────────────────────
+    // { capture: true } runs BEFORE browser handles the event, so our
+    // shortcuts win over browser defaults (Ctrl+K address bar, etc.).
+    // e.stopPropagation() prevents duplicate handlers from firing.
     document.addEventListener('keydown', async e => {
-      const tag     = e.target.tagName;
-      const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag) && !e.target.classList.contains('form-input-allow-shortcuts');
-      const ctrl    = e.ctrlKey || e.metaKey;
+      const ctrl   = e.ctrlKey || e.metaKey;
+      const active = document.activeElement;
+      const tag    = active?.tagName;
+      // inInput: true when typing in a real text/select field
+      const inInput = ['INPUT','TEXTAREA','SELECT'].includes(tag)
+                      && !active?.classList.contains('form-input-allow-shortcuts');
 
-      // Ctrl+K — Search (works even when an input is focused)
-      if (ctrl && e.key === 'k') {
-        e.preventDefault(); this.search.open('all'); return;
+      // ── Global shortcuts (work from anywhere, override browser) ────────
+
+      // Ctrl+K — Search
+      if (ctrl && !e.shiftKey && e.key === 'k') {
+        e.preventDefault(); e.stopPropagation();
+        this.search.open('all'); return;
       }
-
       // Ctrl+Shift+S — Summary
       if (ctrl && e.shiftKey && e.key === 'S') {
-        e.preventDefault(); this.openSummary(); return;
+        e.preventDefault(); e.stopPropagation();
+        this.openSummary(); return;
       }
-
       // Ctrl+Shift+H — Changes
       if (ctrl && e.shiftKey && e.key === 'H') {
-        e.preventDefault(); this.openChanges(); return;
+        e.preventDefault(); e.stopPropagation();
+        this.openChanges(); return;
+      }
+      // Ctrl+Z — Undo
+      if (ctrl && !e.shiftKey && e.key === 'z') {
+        if (this.inEdit) return; // let the cell editor handle native undo
+        e.preventDefault(); e.stopPropagation();
+        await this.undoMgr.doUndo(this); await this.loadLedger(); return;
+      }
+      // Ctrl+Shift+Z / Ctrl+Y — Redo
+      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey)) && !this.inEdit) {
+        e.preventDefault(); e.stopPropagation();
+        await this.undoMgr.doRedo(this); await this.loadLedger(); return;
       }
 
-      // Shift+P — Pin / unpin current account
+      // Shift+N — Quick Add
+      // Allowed from anywhere EXCEPT: inside an active cell edit, or Quick Add already open
+      if (e.shiftKey && !ctrl && e.key === 'N'
+          && !this.inEdit
+          && !el('#quick-add-overlay').classList.contains('open')) {
+        e.preventDefault(); e.stopPropagation();
+        this.openQuickAdd(); return;
+      }
+
+      // Shift+P — Pin / unpin (blocked when typing in an input)
       if (e.shiftKey && !ctrl && e.key === 'P' && !inInput) {
-        e.preventDefault();
+        e.preventDefault(); e.stopPropagation();
         if (this.currentAccountId) await this.togglePin(this.currentAccountId);
         return;
       }
@@ -1760,40 +1791,18 @@ class FinApp {
         this.closeQuickAdd();
         this.closeAccountModal();
         el('#ctx-menu').classList.remove('open');
-        if (this.inEdit) return; // Esc in edit handled in _startEdit
+        if (this.inEdit) return; // Esc inside a cell handled by _startEdit
         this.navPos = null;
         els('.nav-focus').forEach(c => c.classList.remove('nav-focus'));
         return;
       }
 
-      // Shift+N — Quick Add
-      if (e.shiftKey && !ctrl && e.key === 'N' && !inInput) { e.preventDefault(); this.openQuickAdd(); return; }
-
-      // Ctrl+Z — Undo (work even when a non-edit input is focused, like filter-q)
-      if (ctrl && e.key === 'z' && !e.shiftKey) {
-        // Only suppress if user is actively editing a cell (inEdit)
-        if (this.inEdit) return;
-        e.preventDefault();
-        await this.undoMgr.doUndo(this);
-        await this.loadLedger();
-        return;
-      }
-
-      // Ctrl+Shift+Z / Ctrl+Y — Redo
-      if (ctrl && (e.key === 'y' || (e.key === 'z' && e.shiftKey)) && !this.inEdit) {
-        e.preventDefault();
-        await this.undoMgr.doRedo(this);
-        await this.loadLedger();
-        return;
-      }
-
-      // Ctrl+A — Select all transactions
+      // Ctrl+A — Select all rows (blocked when typing)
       if (ctrl && e.key === 'a' && !inInput) {
-        e.preventDefault();
+        e.preventDefault(); e.stopPropagation();
         this.transactions.forEach(t => this.selectedRows.add(t.id));
         els('.row-checkbox').forEach(cb => { cb.checked = true; cb.closest('.ledger-row')?.classList.add('selected'); });
-        this._updateSelectionToolbar();
-        return;
+        this._updateSelectionToolbar(); return;
       }
 
       // Delete — delete selected rows
@@ -1801,7 +1810,7 @@ class FinApp {
         this.bulkAction('delete'); return;
       }
 
-      // Ledger arrow key navigation (only when not editing, not in input, ledger is visible)
+      // Ledger arrow key navigation (only when not editing/in input, ledger visible)
       if (!inInput && !this.inEdit && this.transactions?.length && !el('#search-overlay').classList.contains('open')) {
         if (e.key === 'ArrowDown') {
           e.preventDefault();
@@ -1831,7 +1840,6 @@ class FinApp {
           const cell = row?.querySelector(`[data-field="${this.navPos.field}"]`);
           if (cell) {
             this._startEdit(cell, this.navPos.txnId, this.navPos.field);
-            // Delay so the input is mounted first
             setTimeout(() => {
               const inp = cell.querySelector('.cell-input');
               if (inp) { inp.value = e.key; inp.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -1840,7 +1848,7 @@ class FinApp {
           return;
         }
       }
-    });
+    }, { capture: true });   // capture = runs before browser's own shortcut handling
   }
 }
 
