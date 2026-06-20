@@ -1201,6 +1201,7 @@ class FinApp {
       hid.value = id;
       inp.value = label(a);
       hideDrop();
+      this._showQaPreview(id, a);
     };
 
     inp.addEventListener('focus', () => {
@@ -1289,6 +1290,62 @@ class FinApp {
     setTimeout(() => el('#acct-number').focus(), 50);
   }
 
+  async _showQaPreview(id, acctObj) {
+    const panel = el('#qa-preview');
+    if (!panel) return;
+
+    const acct = acctObj || this.accounts.find(a => a.id === id);
+    const bal  = acct?.balance ?? 0;
+    const balClass = Math.abs(bal) < 0.005 ? 'zero' : (bal >= 0 ? 'pos' : 'neg');
+    const fmtAmt = v => '₹' + Math.abs(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtDate = s => {
+      if (!s) return '—';
+      const d = new Date(s + 'T00:00:00');
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    };
+
+    panel.innerHTML = `
+      <div class="qa-prev-head">
+        <div class="qa-prev-acct-name">${(acct?.name || '').replace(/</g,'&lt;')}</div>
+        <div class="qa-prev-bal-label">Current Balance</div>
+        <div class="qa-prev-bal-val ${balClass}">${bal < 0 ? '−' : ''}${fmtAmt(bal)}</div>
+      </div>
+      <div class="qa-prev-body"><div class="qa-prev-empty">Loading…</div></div>`;
+    panel.classList.add('visible');
+
+    try {
+      const data = await $.get(`/api/accounts/${id}/ledger?limit=8`);
+      const txns = (data.transactions || []).slice().reverse();
+
+      let body = '';
+      if (!txns.length) {
+        body = '<div class="qa-prev-empty">No transactions yet</div>';
+      } else {
+        body += `<div class="qa-prev-cols">
+          <span>Date</span>
+          <span class="qa-prev-cols-cr">↑ Credit</span>
+          <span class="qa-prev-cols-dr">↓ Debit</span>
+        </div>`;
+        for (const t of txns) {
+          const crCell = t.credit > 0
+            ? `<div class="qa-prev-amt cr">${fmtAmt(t.credit)}</div><div class="qa-prev-rem">${(t.credit_remark || '').replace(/</g,'&lt;')}</div>`
+            : '';
+          const drCell = t.debit > 0
+            ? `<div class="qa-prev-amt dr">${fmtAmt(t.debit)}</div><div class="qa-prev-rem">${(t.debit_remark || '').replace(/</g,'&lt;')}</div>`
+            : '';
+          body += `<div class="qa-prev-row">
+            <div class="qa-prev-date">${fmtDate(t.txn_date)}</div>
+            <div class="qa-prev-cell">${crCell}</div>
+            <div class="qa-prev-cell">${drCell}</div>
+          </div>`;
+        }
+      }
+      panel.querySelector('.qa-prev-body').innerHTML = body;
+    } catch {
+      panel.querySelector('.qa-prev-body').innerHTML = '<div class="qa-prev-empty">—</div>';
+    }
+  }
+
   openQuickAdd() {
     el('#quick-add-overlay').classList.add('open');
     el('#qa-date').value = this._defaultDate();
@@ -1300,6 +1357,7 @@ class FinApp {
 
   closeQuickAdd() {
     el('#quick-add-overlay').classList.remove('open');
+    el('#qa-preview')?.classList.remove('visible');
     els('#quick-add-modal .form-input').forEach(i => { i.value = ''; });
     el('#qa-account').value = '';
     el('#qa-account-dropdown').classList.remove('open');

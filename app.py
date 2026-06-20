@@ -430,7 +430,13 @@ def api_ledger(aid):
             FinTransaction.tags.ilike(p),
         ))
 
-    txns = q.order_by(FinTransaction.sort_order, FinTransaction.id).all()
+    limit = request.args.get('limit', type=int)
+    if limit:
+        txns = list(reversed(
+            q.order_by(FinTransaction.sort_order.desc(), FinTransaction.id.desc()).limit(limit).all()
+        ))
+    else:
+        txns = q.order_by(FinTransaction.sort_order, FinTransaction.id).all()
 
     running = 0
     rows, fc, fd = [], 0.0, 0.0
