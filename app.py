@@ -430,13 +430,15 @@ def api_ledger(aid):
             FinTransaction.tags.ilike(p),
         ))
 
+    _effective_date = func.coalesce(FinTransaction.transaction_date, FinTransaction.txn_date)
     limit = request.args.get('limit', type=int)
     if limit:
         txns = list(reversed(
-            q.order_by(FinTransaction.sort_order.desc(), FinTransaction.id.desc()).limit(limit).all()
+            q.order_by(_effective_date.desc(), FinTransaction.sort_order.desc(), FinTransaction.id.desc())
+             .limit(limit).all()
         ))
     else:
-        txns = q.order_by(FinTransaction.sort_order, FinTransaction.id).all()
+        txns = q.order_by(_effective_date, FinTransaction.sort_order, FinTransaction.id).all()
 
     running = 0
     rows, fc, fd = [], 0.0, 0.0

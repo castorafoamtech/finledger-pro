@@ -288,7 +288,7 @@ class FinApp {
     this.ledgerData        = null;
     this.transactions      = [];
     this.filters           = { type: 'all', status: '', color_flag: '', date_from: '', date_to: '', q: '' };
-    this.sortField         = 'txn_date';
+    this.sortField         = 'transaction_date';
     this.sortDir           = null;  // null = server order, 'asc' = oldest first, 'desc' = newest first
     this.lastUsedDate      = localStorage.getItem('fin_last_date')     || null;
     this.lastUsedTxnDate   = localStorage.getItem('fin_last_txn_date') || null;
@@ -563,8 +563,8 @@ class FinApp {
     let txns = this.transactions;
     if (this.sortField && this.sortDir) {
       txns = [...txns].sort((a, b) => {
-        const va = a[this.sortField] || '';
-        const vb = b[this.sortField] || '';
+        const va = (a.transaction_date || a.txn_date) || '';
+        const vb = (b.transaction_date || b.txn_date) || '';
         const cmp = va < vb ? -1 : va > vb ? 1 : 0;
         return this.sortDir === 'asc' ? cmp : -cmp;
       });
@@ -627,10 +627,10 @@ class FinApp {
           <input type="checkbox" class="row-checkbox" data-id="${t.id}" ${this.selectedRows.has(t.id) ? 'checked' : ''}>
         </div>
       </td>
-      <td class="col-date cell-editable cell-date" data-field="txn_date" data-id="${t.id}">
+      <td class="col-date cell-editable cell-date" data-field="transaction_date" data-id="${t.id}">
         <div class="cell-inner cell-date-inner">
-          <input type="date" class="cell-input" value="${fmtDate(t.txn_date)}" data-id="${t.id}" data-field="txn_date">
-          ${t.transaction_date ? `<span class="txn-date-sub" title="Date of Transaction">Txn: ${fmtDateShort(t.transaction_date)}</span>` : ''}
+          <input type="date" class="cell-input" value="${fmtDate(t.transaction_date || t.txn_date)}" data-id="${t.id}" data-field="transaction_date">
+          ${t.txn_date && t.transaction_date && t.txn_date !== t.transaction_date ? `<span class="txn-date-sub" title="Entry date">Entry: ${fmtDateShort(t.txn_date)}</span>` : ''}
         </div>
       </td>
       <td class="col-credit cell-editable cell-num" data-field="credit" data-id="${t.id}">
