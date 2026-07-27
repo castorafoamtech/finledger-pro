@@ -683,12 +683,14 @@ class FinApp {
     if (dateInput) {
       dateInput.addEventListener('change', async () => {
         if (dateInput.value) { this.lastUsedDate = dateInput.value; localStorage.setItem('fin_last_date', dateInput.value); }
-        const before = { txn_date: this.transactions.find(t => t.id === id)?.txn_date || null };
-        await this._patchTxn(id, { txn_date: dateInput.value });
+        const txn = this.transactions.find(t => t.id === id);
+        const before = { transaction_date: txn?.transaction_date || null };
+        await this._patchTxn(id, { transaction_date: dateInput.value });
+        this._renderLedger();
         this.undoMgr.push({
           label: 'Edit date',
           undo: async app => { await app._patchTxn(id, before); await app.loadLedger(); },
-          redo: async app => { await app._patchTxn(id, { txn_date: dateInput.value }); await app.loadLedger(); },
+          redo: async app => { await app._patchTxn(id, { transaction_date: dateInput.value }); await app.loadLedger(); },
         });
       });
     }
@@ -925,6 +927,7 @@ class FinApp {
     const txn = this.transactions.find(t => t.id === id);
     if (!txn) return;
     Object.keys(patch).forEach(field => {
+      if (field === 'transaction_date' || field === 'txn_date') return; // date cell rebuilt by _renderLedger
       const cell = row.querySelector(`[data-field="${field}"]`);
       if (!cell || cell.classList.contains('focused')) return;
       this._refreshCell(cell, id, field, txn);
